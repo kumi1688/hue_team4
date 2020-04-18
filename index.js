@@ -9,7 +9,7 @@ const mqttOptions = {
 const client  = mqtt.connect(mqttOptions);
  
 client.on('connect', function () {
-    console.log('mqtt 연결됨');
+    console.log('[sys] mqtt 연결됨');
 });
 
 client.subscribe('req/hue/property');
@@ -17,15 +17,14 @@ client.subscribe('req/hue/status');
 client.subscribe('req/hue/changeStatus/+');
 
 const property = require('./property.json');
+console.log('[sys] Property 설정 완료');
 
 client.on('message', function (topic, message) {
     console.log('topic : ', topic);
     if(topic === 'req/hue/property'){
         client.publish('res/hue/property', JSON.stringify(property));
     }else if (topic === 'req/hue/status'){
-        // console.log(currentHueState);
         const removeEmptyElementArray = currentHueState.filter(el => el !== undefined && el !== {});
-        console.log(removeEmptyElementArray)
         client.publish('res/hue/status', JSON.stringify(removeEmptyElementArray));
     }else if (topic === 'req/hue/changeStatus/+'){
         const id = topic.split('/')[3];
@@ -34,10 +33,10 @@ client.on('message', function (topic, message) {
 });
 
 const hueNumber = property.number.split(',');
-console.log(hueNumber);
 let prevHueState = [];
 let currentHueState = [];
 
+showProperty();
 
 // 2초 마다 상태 점검
 setInterval(()=>{
@@ -48,7 +47,6 @@ setInterval(()=>{
         currentHueState[hue].number = hue;
         
         if(!compareState(prevHueState[hue], currentHueState[hue])){
-            // result.data.state['number'] = hue;
             client.publish(`res/hue/status`, JSON.stringify(result.data.state));
         }
         prevHueState[hue] = currentHueState[hue];
@@ -73,5 +71,10 @@ function compareState(prev, current){
     // colormode: 'hs',
     // reachable: false,
     // number: '9'      
+}
+
+function showProperty(){
+    console.log('[sys] 현재 hue 목록 : ', hueNumber);
+    console.log('[sys] hue 속성 : ', property)
 }
 
