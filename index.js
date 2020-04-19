@@ -18,21 +18,30 @@ client.subscribe('req/hue/changeStatus/+');
 
 const property = require('./property.json');
 console.log('[sys] Property 설정 완료');
+const hueNumber = property.number.split(',');
 
-client.on('message', function (topic, message) {
+client.on('message', async function (topic, message) {
     console.log('topic : ', topic);
     if(topic === 'req/hue/property'){
         client.publish('res/hue/property', JSON.stringify(property));
     }else if (topic === 'req/hue/status'){
-        const removeEmptyElementArray = currentHueState.filter(el => el !== undefined && el !== {});
-        client.publish('res/hue/status', JSON.stringify(removeEmptyElementArray));
-    }else if (topic === 'req/hue/changeStatus/+'){
+        if(currentHueState.length === 0){
+            const initialData = await getAllHueData(hueNumber);
+            console.log(initialData);
+            currentHueState = [...initialData];
+            client.publish('res/hue/status', JSON.stringify(initialData));
+        }else{
+            const removeEmptyElementArray = currentHueState.filter(el => el !== undefined && el !== {});
+            client.publish('res/hue/status', JSON.stringify(removeEmptyElementArray));
+        }
+    }else if (topic.includes('req/hue/changeStatus')){
         const id = topic.split('/')[3];
-        axios.put(`${hueUrl}/${id}`);
+        console.log(JSON.parse(message));
+        axios.put(`${hueUrl}/${id}/state`, JSON.parse(message));
     }
 });
 
-const hueNumber = property.number.split(',');
+
 let prevHueState = [];
 let currentHueState = [];
 
@@ -40,38 +49,26 @@ showProperty();
 
 // 2초 마다 상태 점검
 setInterval(()=>{
-    hueNumber.forEach(async function(hue){
-        const result = await axios.get(`${hueUrl}/${hue}`);
-        
-        currentHueState[hue] = result.data.state;
-        currentHueState[hue].number = hue;
-        
-        if(!compareState(prevHueState[hue], currentHueState[hue])){
-            client.publish(`res/hue/status`, JSON.stringify(result.data.state));
-        }
-        prevHueState[hue] = currentHueState[hue];
-        
-    })    
-}, 2000);
+    
+})
 
-function compareState(prev, current){
-   if(prev === undefined ) return false;
-   Object.keys(prev).forEach(function(){
-       if(prev.key !== current.key) return false;
-   })
-   return true;
-    // on: false,
-    // bri: 254,
-    // hue: 0,
-    // sat: 254,
-    // effect: 'none',
-    // xy: [ 0.4573, 0.41 ],
-    // ct: 366,
-    // alert: 'select',
-    // colormode: 'hs',
-    // reachable: false,
-    // number: '9'      
+async function getHueData(hue){
+    return new Promise(async function(resolve, reject){
+       const result = await axios.get(`${hueUrl}/${hue}`);
+        result.data.state.number = Number(hue);
+        resolve(result.data);
+    });
 }
+
+async function getAllHueData(arr) {
+    // RIGHT :: Array.map using async-await and Promise.all
+    const result = await Promise.all(
+      arr.map(hue => {
+        return getHueData(hue);
+      })
+    );
+    return result;
+  }
 
 function showProperty(){
     console.log('[sys] 현재 hue 목록 : ', hueNumber);
