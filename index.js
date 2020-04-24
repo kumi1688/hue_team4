@@ -10,7 +10,7 @@ const mqttOptions = {
 const client = mqtt.connect(mqttOptions);
 
 client.subscribe("req/hue/property");
-client.subscribe("req/hue/status");
+client.subscribe("req/hue/status2");
 client.subscribe("req/hue/changeStatus/+");
 
 client.on("connect", function () {
@@ -19,35 +19,31 @@ client.on("connect", function () {
 
 const property = require("./property.json");
 console.log("[sys] Property 설정 완료");
-const hueNumber = property.number.split(","); // 설정 파일에서 현재 제어 가능한 hue 번호가 담긴 배열
+const hueNumber = property.number; // 설정 파일에서 현재 제어 가능한 hue 번호가 담긴 배열
+console.log(hueNumber);
 
 client.on("message", async function (topic, message) {
   console.log("topic : ", topic);
-  if (topic === "req/hue/property") { 
-        // 속성 전송
-        client.publish("res/hue/property", JSON.stringify(property));
-  } else if (topic === "req/hue/status") {
-        // 현재 상태 전송
-    if (currentHueState.length === 0) { // 한번도 상태 값을 전송하지 않은 경우
-        const initialData = await getAllHueData(hueNumber); // 모든 hue의 상태를 받아옴
-        currentHueState = [...initialData];
-        client.publish("res/hue/status", JSON.stringify(initialData)); // 초기 상태 전송
-    } else {
-        // 한번이라도 상태 값을 전송한 경우
-        const removeEmptyElementArray = currentHueState.filter((el) => el !== undefined && el !== {});
-        client.publish("res/hue/status", JSON.stringify(removeEmptyElementArray));
-    }
-  } else if (topic.includes("req/hue/changeStatus")) { // hue 상태를 조작하려는 경우 
+  if (topic === "req/hue/property") {
+    // 속성 전송
+    client.publish("res/hue/property", JSON.stringify(property));
+  } else if (topic === "req/hue/status2") {
+    // 현재 상태 전송
+    const result = await getAllHueData(hueNumber);
+    const data = result.map((el) => el.state);
+    client.publish("res/hue/status2", JSON.stringify(data));
+  } else if (topic.includes("req/hue/changeStatus")) {
+    // hue 상태를 조작하려는 경우
     const id = topic.split("/")[3];
-    const {on,bri,sat,hue,ct} = JSON.parse(message);
+    const { on, bri, sat, hue, ct } = JSON.parse(message);
 
-    await axios.put(`${hueUrl}/${id}/state`, {on}); // 전원 변경
-    await axios.put(`${hueUrl}/${id}/state`, {ct}); // 온도 변경
-    await axios.put(`${hueUrl}/${id}/state`, {hue, bri, sat}); // 색 변경
+    await axios.put(`${hueUrl}/${id}/state`, { on }); // 전원 변경
+    await axios.put(`${hueUrl}/${id}/state`, { ct }); // 온도 변경
+    await axios.put(`${hueUrl}/${id}/state`, { hue, bri, sat }); // 색 변경
   }
 });
 
-let prevHueState = []; // 이전 상태 
+let prevHueState = []; // 이전 상태
 let currentHueState = []; // 현재 상태
 
 // 2초 마다 상태 점검
@@ -64,8 +60,8 @@ setInterval(async () => {
       client.publish("res/hue/update", JSON.stringify(currentHueState[i]));
     }
   }
-  console.log("통과"); // 상태가 이전과 같다면 통과
-  prevHueState = [...currentHueState]; // 현재 상태를 이전상태로 만듬 
+  // console.log("통과"); // 상태가 이전과 같다면 통과
+  prevHueState = [...currentHueState]; // 현재 상태를 이전상태로 만듬
 }, 2000); // 2초마다 반복
 
 // 객체 내용 비교
@@ -82,19 +78,20 @@ function compare(prev, current) {
 // 모든 데이터 받아오는 함수
 async function getHueData(hue) {
   return new Promise(async function (resolve, reject) {
-    const result = await axios.get(`${hueUrl}/${hue}`);
-    result.data.state.number = Number(hue);
-    resolve(result.data);
+    try {
+      const result = await axios.get(`${hueUrl}/${hue}`);
+      result.data.state.number = Number(hue);
+      resolve(result.data);
+    } catch (e) {
+      // console.error(e);
+      // reject(e);
+    }
   });
 }
 
 // 모든 데이터 받아오는 함수. 비동기처리를 위해 만듬
 async function getAllHueData(arr) {
-  const result = await Promise.all(
-    arr.map((hue) => {
-      return getHueData(hue);
-    })
-  );
+  const result = await Promise.all(arr.map((hue) => getHueData(hue)));
   return result;
 }
 
