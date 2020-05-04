@@ -35,11 +35,16 @@ client.on("message", async function (topic, message) {
   } else if (topic.includes("req/hue/changeStatus")) {
     // hue 상태를 조작하려는 경우
     const id = topic.split("/")[3];
-    const { on, bri, sat, hue, ct } = JSON.parse(message);
 
-    await axios.put(`${hueUrl}/${id}/state`, { on }); // 전원 변경
-    await axios.put(`${hueUrl}/${id}/state`, { ct }); // 온도 변경
-    await axios.put(`${hueUrl}/${id}/state`, { hue, bri, sat }); // 색 변경
+    const { on, bri, sat, hue, ct } = JSON.parse(message);
+    
+    if(on && bri && sat && hue) await axios.put(`${hueUrl}/${id}/state`, {on, bri, sat, hue});
+    else if ( on ) await axios.put(`${hueUrl}/${id}/state`, {on});
+    else if ( ct ) await axios.put(`${hueUrl}/${id}/state`, {ct});
+    else if ( bri ) await axios.put(`${hueUrl}/${id}/state`, {bri});
+    else if ( sat ) await axios.put(`${hueUrl}/${id}/state`, {sat});
+
+    
   }
 });
 
@@ -93,6 +98,11 @@ async function getHueData(hue) {
 async function getAllHueData(arr) {
   const result = await Promise.all(arr.map((hue) => getHueData(hue)));
   return result;
+}
+
+function filterHueChangeRequest(message){
+  const data = JSON.parse(message);
+  
 }
 
 function showProperty() {
