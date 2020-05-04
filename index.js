@@ -12,6 +12,7 @@ const client = mqtt.connect(mqttOptions);
 client.subscribe("req/hue/property");
 client.subscribe("req/hue/status2");
 client.subscribe("req/hue/changeStatus/+");
+client.subscribe('req/hue/changeAllStatus');
 
 client.on("connect", function () {
   console.log("[sys] mqtt 연결됨");
@@ -37,16 +38,28 @@ client.on("message", async function (topic, message) {
     const id = topic.split("/")[3];
 
     const { on, bri, sat, hue, ct } = JSON.parse(message);
-    
-    if(on && bri && sat && hue) await axios.put(`${hueUrl}/${id}/state`, {on, bri, sat, hue});
-    else if ( on ) await axios.put(`${hueUrl}/${id}/state`, {on});
-    else if ( ct ) await axios.put(`${hueUrl}/${id}/state`, {ct});
-    else if ( bri ) await axios.put(`${hueUrl}/${id}/state`, {bri});
-    else if ( sat ) await axios.put(`${hueUrl}/${id}/state`, {sat});
+  
+    try{
+      if(on && bri && sat && hue) await axios.put(`${hueUrl}/${id}/state`, {on, bri, sat, hue});
+      else if ( on !== undefined ) await axios.put(`${hueUrl}/${id}/state`, {on});
+      else if ( ct ) await axios.put(`${hueUrl}/${id}/state`, {ct});
+      else if ( bri ) await axios.put(`${hueUrl}/${id}/state`, {bri});
+      else if ( sat ) await axios.put(`${hueUrl}/${id}/state`, {sat});
+    }catch(e){console.error(e)}
+  } else if (topic.includes("req/hue/changeAllStatus")){
 
-    
+    const { on, bri, sat, hue, ct , numlist } = JSON.parse(message);
+
+    try{
+      if(on && bri && sat && hue) await Promise.all(numlist.map(num=>axios.put(`${hueUrl}/${num}/state`, {on, bri, sat, hue})));
+      else if ( on !== undefined ) await Promise.all(numlist.map(num=>axios.put(`${hueUrl}/${num}/state`, {on}))) 
+      else if ( ct ) await Promise.all(numlist.map(num=>axios.put(`${hueUrl}/${num}/state`, {ct})))
+      else if ( bri ) await Promise.all(numlist.map(num=>axios.put(`${hueUrl}/${num}/state`, {bri})))
+      else if ( sat ) await Promise.all(numlist.map(num=>axios.put(`${hueUrl}/${num}/state`, {sat})))
+    }catch(e){console.error(e)}
   }
 });
+
 
 let prevHueState = []; // 이전 상태
 let currentHueState = []; // 현재 상태
@@ -98,11 +111,6 @@ async function getHueData(hue) {
 async function getAllHueData(arr) {
   const result = await Promise.all(arr.map((hue) => getHueData(hue)));
   return result;
-}
-
-function filterHueChangeRequest(message){
-  const data = JSON.parse(message);
-  
 }
 
 function showProperty() {
