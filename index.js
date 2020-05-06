@@ -10,9 +10,9 @@ const mqttOptions = {
 const client = mqtt.connect(mqttOptions);
 
 client.subscribe("req/hue/property");
-client.subscribe("req/hue/status2");
+client.subscribe("req/hue/status");
 client.subscribe("req/hue/changeStatus/+");
-client.subscribe('req/hue/changeAllStatus');
+client.subscribe("req/hue/changeAllStatus");
 
 client.on("connect", function () {
   console.log("[sys] mqtt 연결됨");
@@ -28,38 +28,60 @@ client.on("message", async function (topic, message) {
   if (topic === "req/hue/property") {
     // 속성 전송
     client.publish("res/hue/property", JSON.stringify(property));
-  } else if (topic === "req/hue/status2") {
+  } else if (topic === "req/hue/status") {
     // 현재 상태 전송
     const result = await getAllHueData(hueNumber);
     const data = result.map((el) => el.state);
-    client.publish("res/hue/status2", JSON.stringify(data));
+    client.publish("res/hue/status", JSON.stringify(data));
   } else if (topic.includes("req/hue/changeStatus")) {
     // hue 상태를 조작하려는 경우
     const id = topic.split("/")[3];
 
     const { on, bri, sat, hue, ct } = JSON.parse(message);
-  
-    try{
-      if(on && bri && sat && hue) await axios.put(`${hueUrl}/${id}/state`, {on, bri, sat, hue});
-      else if ( on !== undefined ) await axios.put(`${hueUrl}/${id}/state`, {on});
-      else if ( ct ) await axios.put(`${hueUrl}/${id}/state`, {ct});
-      else if ( bri ) await axios.put(`${hueUrl}/${id}/state`, {bri});
-      else if ( sat ) await axios.put(`${hueUrl}/${id}/state`, {sat});
-    }catch(e){console.error(e)}
-  } else if (topic.includes("req/hue/changeAllStatus")){
+    // console.log(on, bri, sat, hue, ct);
 
-    const { on, bri, sat, hue, ct , numlist } = JSON.parse(message);
+    try {
+      if (on && bri && sat && hue)
+        await axios.put(`${hueUrl}/${id}/state`, { on, bri, sat, hue });
+      else if (on !== undefined && !ct && !bri && !sat)
+        await axios.put(`${hueUrl}/${id}/state`, { on });
+      else if (ct) await axios.put(`${hueUrl}/${id}/state`, { ct });
+      else if (bri) await axios.put(`${hueUrl}/${id}/state`, { bri });
+      else if (sat) await axios.put(`${hueUrl}/${id}/state`, { sat });
+    } catch (e) {
+      console.error(e);
+    }
+  } else if (topic.includes("req/hue/changeAllStatus")) {
+    const { on, bri, sat, hue, ct, numlist } = JSON.parse(message);
 
-    try{
-      if(on && bri && sat && hue) await Promise.all(numlist.map(num=>axios.put(`${hueUrl}/${num}/state`, {on, bri, sat, hue})));
-      else if ( on !== undefined ) await Promise.all(numlist.map(num=>axios.put(`${hueUrl}/${num}/state`, {on}))) 
-      else if ( ct ) await Promise.all(numlist.map(num=>axios.put(`${hueUrl}/${num}/state`, {ct})))
-      else if ( bri ) await Promise.all(numlist.map(num=>axios.put(`${hueUrl}/${num}/state`, {bri})))
-      else if ( sat ) await Promise.all(numlist.map(num=>axios.put(`${hueUrl}/${num}/state`, {sat})))
-    }catch(e){console.error(e)}
+    try {
+      if (on && bri && sat && hue)
+        await Promise.all(
+          numlist.map((num) =>
+            axios.put(`${hueUrl}/${num}/state`, { on, bri, sat, hue })
+          )
+        );
+      else if (on !== undefined && !ct && !bri && !sat)
+        await Promise.all(
+          numlist.map((num) => axios.put(`${hueUrl}/${num}/state`, { on }))
+        );
+      else if (ct)
+        await Promise.all(
+          numlist.map((num) => axios.put(`${hueUrl}/${num}/state`, { ct }))
+        );
+      else if (bri)
+        await Promise.all(
+          numlist.map((num) => axios.put(`${hueUrl}/${num}/state`, { bri }))
+        );
+      else if (sat)
+        await Promise.all(
+          numlist.map((num) => axios.put(`${hueUrl}/${num}/state`, { sat }))
+        );
+    } catch (e) {
+      console.error(e);
+    }
   }
 });
-
 
 let prevHueState = []; // 이전 상태
 let currentHueState = []; // 현재 상태
