@@ -30,9 +30,11 @@ client.on("message", async function (topic, message) {
     client.publish("res/hue/property", JSON.stringify(property));
   } else if (topic === "req/hue/status") {
     // 현재 상태 전송
-    const result = await getAllHueData(hueNumber);
-    const data = result.map((el) => el.state);
-    client.publish("res/hue/status", JSON.stringify(data));
+    // const result = await getAllHueData(hueNumber);
+    // console.log(result)
+    // const data = result.map((el) => el.state);
+    // console.log(data);
+    client.publish("res/hue/status", JSON.stringify(currentHueState));
   } else if (topic.includes("req/hue/changeStatus")) {
     // hue 상태를 조작하려는 경우
     const id = topic.split("/")[3];
